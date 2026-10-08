@@ -55,6 +55,22 @@ def gb2312_l1():
     return out
 
 
+def big5_l1():
+    """Big5 常用字 5401 个（A440–C67E），繁体中文（港台）解说片换题目不用每次补字"""
+    out = set()
+    for hi in range(0xA4, 0xC7):
+        for lo in list(range(0x40, 0x7F)) + list(range(0xA1, 0xFF)):
+            try: out.add(bytes([hi, lo]).decode('big5'))
+            except UnicodeDecodeError: pass
+    return out
+
+
+# 粤语书写常用字与港式字形：大多不在 Big5 常用字里（书面语为主，引语、角色对白仍会用到）
+CANTONESE = ('嘅咗喺唔冇啲嘢佢哋咁乜嗰啱噉嚟呢睇諗攞俾畀搵揾瞓攰嘥嚿咪喎囉㗎嘞啩咩嘛啦吖喇噃晒冚撳郁揼掟罅冧嬲餸靚窿'
+             '嗱啫咋囖咦噢嘩哇唓嗌嘈嚡氹凼孭攝擰抦踎瞓煲焗啖啜嗒嗲揸摷擘撚咭咕嘟嘭嚤'
+             '着裏峯綫衞粵滙麪')
+
+
 def cjk(text):
     return set(ch for ch in text if ord(ch) > 0x2E7F)
 
@@ -93,6 +109,8 @@ def main():
     ap.add_argument('--text', default='', help='额外要的字')
     ap.add_argument('--no-default-scan', action='store_true', help='不扫 skill 自己的 engine/')
     ap.add_argument('--gb2312', action='store_true', help='并进 GB2312 全部汉字（6763 个）')
+    ap.add_argument('--big5', action='store_true', help='并进 Big5 常用字（5401 个）＋粤语常用字，繁体字体用')
+    ap.add_argument('--weight', type=float, help='可变字体先按这个字重实例化（如思源黑体 HK 的 500/700/800/900）')
     ap.add_argument('--fix-widths', nargs='+', metavar='WOFF', help='不抽子集，只修已有字体文件里字宽为 0 的全角空格')
     a = ap.parse_args()
     if a.fix_widths:
@@ -107,7 +125,11 @@ def main():
     for d in a.scan: chars |= scan(d)
     chars |= set(chr(c) for c in range(0x20, 0x7F))           # ASCII 全带上（年份、英文副标题）
     if a.gb2312: chars |= gb2312_l1() | set(PUNCT)
+    if a.big5: chars |= big5_l1() | set(CANTONESE) | set(PUNCT)
     font = TTFont(a.font)
+    if a.weight is not None:
+        from fontTools.varLib import instancer
+        font = instancer.instantiateVariableFont(font, {'wght': a.weight})
     cmap = font.getBestCmap()
     miss = sorted(ch for ch in chars if ord(ch) not in cmap and not ch.isspace())
     opts = subset.Options(); opts.flavor = 'woff'; opts.layout_features = ['*']; opts.name_IDs = ['*']; opts.notdef_outline = True

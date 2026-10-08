@@ -30,6 +30,8 @@ async function boot() {
   for (const e of ERAS) (e.assets || []).concat(e.plate ? [e.plate] : []).forEach(s => list.add(s));
   (window.EXTRA_ASSETS || []).forEach(s => list.add(s));
   await Promise.all([...list].map(async s => { IMG[s] = await load(s); }));
+  try { applyFontset(new URLSearchParams(location.search).get('fontset')); }   // 繁体：index.html?fontset=tc（render.py --fontset）
+  catch (e) { window.__bootFailed = String(e.message || e); console.error('BOOT FAILED\n' + window.__bootFailed); return; }
   for (const f of (window.FONT_FACES || [])) { const ff = new FontFace(f.family, `url(${f.url})`, f.desc || {}); await ff.load(); document.fonts.add(ff); }
   await document.fonts.ready;
   await U.loadCmaps();                                  // 字形检查用（U.assertGlyphs）

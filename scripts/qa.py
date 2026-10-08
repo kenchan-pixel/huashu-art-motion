@@ -31,6 +31,8 @@
 """
 import argparse, base64, functools, http.server, io, json, socketserver, threading, urllib.parse
 from pathlib import Path
+import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows 繁中系统默认 cp950：打印页面里的简体报错会 UnicodeEncodeError
 import numpy as np
 from PIL import Image, ImageDraw
 from playwright.sync_api import sync_playwright
@@ -43,7 +45,7 @@ a = ap.parse_args()
 if not (a.project or a.spec): ap.error('--project 或 --spec 二选一')
 spec, ALLOWED = None, set()
 if a.spec:                                                 # 和 render.py 同一套：本地图片只服务 spec 里点名的文件
-    sp = Path(a.spec).resolve(); spec = json.loads(sp.read_text())
+    sp = Path(a.spec).resolve(); spec = json.loads(sp.read_text(encoding='utf-8'))
     def ref(v):
         if not v or v.startswith(('data:', 'http:', 'https:')): return v
         f = (sp.parent / v).resolve()
@@ -60,13 +62,14 @@ if a.sub_band is None:   # 片段给管线用：字幕让位写在 spec 的 safe
     a.sub_band = 0.852 if sb is None else (1 - sb / VH if sb else 0)
 
 class Q(http.server.SimpleHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'   # Windows：HTTP/1.0 每次关连接，Chromium 复用/预连接的 socket 会被 RST（ERR_CONNECTION_RESET）
     def log_message(self, *x): pass
     def translate_path(self, path):
         if path.startswith('/__file__/'):
             f = urllib.parse.unquote(path[len('/__file__/'):].split('?')[0])
             return f if f in ALLOWED else '/nonexistent'
         return super().translate_path(path)
-srv = socketserver.TCPServer(('127.0.0.1', 0), functools.partial(Q, directory=str(root))); port = srv.server_address[1]
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Q, directory=str(root))); port = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
 # 框景检查：包一层 fillText/strokeText，记下画在「整屏大小的画布」上的字的屏幕外框（经过当前变换）
@@ -286,14 +289,14 @@ for r in report['segments']:
 fr = [(r['id'], x) for r in report['segments'] for x in r['framing']]
 if fr: rows += ['', '框景线索（全片秒，持续 ≥0.3s；去看这一帧再判断）：'] + [f"- {x['kind']} {x['t'][0]:.2f}–{x['t'][1]:.2f}s（{i}）{x['text']}" for i, x in fr]
 if report.get('transitions'): rows += ['', '转场冒烟（整帧，峰值 ms）：' + '，'.join(f"{r['type']}→{r['id']} {r['ms_max']}" for r in report['transitions'])]
-(out / 'qa.md').write_text('\n'.join(rows) + ('\n\n页面报错：\n' + '\n'.join(errors) if errors else '') + '\n')
+(out / 'qa.md').write_text('\n'.join(rows) + ('\n\n页面报错：\n' + '\n'.join(errors) if errors else '') + '\n', encoding='utf-8')
 print('->', out / 'qa.md')
 if not spec and root != Path(__file__).resolve().parent / 'engine':   # 回流兜底（11 号第一节）：qa 是交付前必跑的，在这里提醒，不让 qa 失败
     import re, time
     draft = next((d / '经验回流-草稿.md' for d in (root.parent, root.parent.parent) if (d / '经验回流-草稿.md').exists()), None)
     if not draft: print(f'回流提醒：项目根（{root.parent.name}）还没有 经验回流-草稿.md。每轮改完追加几条，格式见 skill 的 references/11-进化协议.md 第四节。')
     else:
-        txt = draft.read_text(); age = (time.time() - draft.stat().st_mtime) / 60
+        txt = draft.read_text(encoding='utf-8'); age = (time.time() - draft.stat().st_mtime) / 60
         tail = txt.rsplit('> 水位线', 1)[-1] if '> 水位线' in txt else txt     # 水位线以下＝还没写回 skill 的
         n = len(re.findall(r'^### \[', tail, re.M))
         print(f'回流提醒：经验回流-草稿.md 最近一次写入在 {age:.0f} 分钟前；还没写回 skill 的有 {n} 条（收活时按 11 号归宿表整合，整合完在草稿末尾加一行「> 水位线 <时间>」）。')

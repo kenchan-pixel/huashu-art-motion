@@ -11,6 +11,8 @@ uv run --with playwright python render.py --spec clip.json --out 片段.mp4 [--a
 """
 import argparse, base64, http.server, json, socketserver, subprocess, threading, functools, time, urllib.parse
 from pathlib import Path
+import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows 繁中系统默认 cp950：打印页面里的简体报错会 UnicodeEncodeError
 from playwright.sync_api import sync_playwright
 
 ap = argparse.ArgumentParser()
@@ -26,12 +28,13 @@ ap.add_argument('--no-counter', action='store_true', help='--solo 时不画角�
 ap.add_argument('--crf', type=int, default=14)
 ap.add_argument('--spec', help='参数化片段 spec.json（走 clip.html，不读段落表）')
 ap.add_argument('--alpha', action='store_true', help='--spec 时出 ProRes 4444 带透明（背景不画）')
+ap.add_argument('--fontset', help='繁体字库组：tc（手写/叙事）| tc-kids（儿童）| tc-info（数据/图表）；--spec 时覆盖 spec.fontset，见 lib/fonts.js')
 a = ap.parse_args()
 
 root = Path(__file__).parent
 spec = None
 if a.spec:
-    sp = Path(a.spec).resolve(); spec = json.loads(sp.read_text())
+    sp = Path(a.spec).resolve(); spec = json.loads(sp.read_text(encoding='utf-8'))
     def ref(v):                                            # 本地图片 → /__file__/<绝对路径>（只服务 spec 里点名的文件）
         if not v or v.startswith(('data:', 'http:', 'https:')): return v
         f = (sp.parent / v).resolve()
@@ -42,14 +45,16 @@ if a.spec:
         if q.get('image'): q['image'] = ref(q['image'])
     if (spec.get('data') or {}).get('image'): spec['data']['image'] = ref(spec['data']['image'])
     if a.alpha: spec['alpha'] = True
+    if a.fontset: spec['fontset'] = a.fontset
 class Q(http.server.SimpleHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'   # Windows：HTTP/1.0 每次关连接，Chromium 复用/预连接的 socket 会被 RST（ERR_CONNECTION_RESET）
     def log_message(self, *x): pass
     def translate_path(self, path):
         if path.startswith('/__file__/'):
             f = urllib.parse.unquote(path[len('/__file__/'):].split('?')[0])
             return f if spec and f in ALLOWED else '/nonexistent'
         return super().translate_path(path)
-srv = socketserver.TCPServer(('127.0.0.1', 0), functools.partial(Q, directory=str(root)))
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Q, directory=str(root)))
 port = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
@@ -67,7 +72,7 @@ with sync_playwright() as p:
         pg.add_init_script('window.CLIP_SPEC = ' + json.dumps(spec, ensure_ascii=False) + ';')
         pg.goto(f'http://127.0.0.1:{port}/clip.html?render=1')
     else:
-        pg.goto(f'http://127.0.0.1:{port}/index.html?render=1' + (f'&film={a.film}' if a.film else ''))
+        pg.goto(f'http://127.0.0.1:{port}/index.html?render=1' + (f'&film={a.film}' if a.film else '') + (f'&fontset={a.fontset}' if a.fontset else ''))
     pg.wait_for_function('window.__ready === true || !!window.__bootFailed', timeout=120000)
     bf = pg.evaluate('window.__bootFailed || null')
     if bf: raise SystemExit('场景加载失败，拒绝渲染：\n' + bf)
