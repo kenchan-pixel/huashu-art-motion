@@ -41,6 +41,7 @@ ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 ap.add_argument('--project'); ap.add_argument('--spec', help='参数化片段 spec（走 clip.html，和 render.py --spec 同一套）'); ap.add_argument('--ids'); ap.add_argument('--fps', type=float, default=30)
 ap.add_argument('--out'); ap.add_argument('--film', default='', help='片子名：读 eras_<名>.js'); ap.add_argument('--skip', type=float, default=0.35, help='每段开头跳过的秒数（镜头冲击）')
 ap.add_argument('--sub-band', type=float, default=None, help='字幕带上沿（占画高比例）；整片默认 0.852（920/1080），--spec 默认读 safe.bottom；写 0 关掉「进字幕带」检查')
+ap.add_argument('--fontset', help='繁体字库组，和 render.py --fontset 同一个值才量得准（tc | tc-kids | tc-info）；--spec 时覆盖 spec.fontset')
 a = ap.parse_args()
 if not (a.project or a.spec): ap.error('--project 或 --spec 二选一')
 spec, ALLOWED = None, set()
@@ -54,6 +55,7 @@ if a.spec:                                                 # 和 render.py 同�
     for q in spec.get('cues', []):
         if q.get('image'): q['image'] = ref(q['image'])
     if (spec.get('data') or {}).get('image'): spec['data']['image'] = ref(spec['data']['image'])
+    if a.fontset: spec['fontset'] = a.fontset
 root = Path(a.project).resolve() if a.project else Path(__file__).resolve().parent / 'engine'
 out = Path(a.out) if a.out else (Path(a.spec).resolve().parent / 'qa' if a.spec else root.parent / 'qa'); out.mkdir(parents=True, exist_ok=True)
 VW, VH = (spec.get('width', 1920), spec.get('height', 1080)) if spec else (1920, 1080)
@@ -69,7 +71,12 @@ class Q(http.server.SimpleHTTPRequestHandler):
             f = urllib.parse.unquote(path[len('/__file__/'):].split('?')[0])
             return f if f in ALLOWED else '/nonexistent'
         return super().translate_path(path)
-srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Q, directory=str(root))); port = srv.server_address[1]
+# Chromium may open idle connections while loading scripts in parallel.
+class LocalServer(socketserver.ThreadingTCPServer):
+    request_queue_size = 128
+    daemon_threads = True
+
+srv = LocalServer(('127.0.0.1', 0), functools.partial(Q, directory=str(root))); port = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 
 # 框景检查：包一层 fillText/strokeText，记下画在「整屏大小的画布」上的字的屏幕外框（经过当前变换）
@@ -216,7 +223,7 @@ with sync_playwright() as p:
         pg.add_init_script('window.CLIP_SPEC = ' + json.dumps(spec, ensure_ascii=False) + ';')
         pg.goto(f'http://127.0.0.1:{port}/clip.html?render=1')
     else:
-        pg.goto(f'http://127.0.0.1:{port}/index.html?render=1' + (f'&film={a.film}' if a.film else ''))
+        pg.goto(f'http://127.0.0.1:{port}/index.html?render=1' + (f'&film={a.film}' if a.film else '') + (f'&fontset={a.fontset}' if a.fontset else ''))
     pg.wait_for_function('window.__ready === true || !!window.__bootFailed', timeout=180000)
     bf = pg.evaluate('window.__bootFailed || null')
     if bf: raise SystemExit('❌ 场景加载失败：\n' + bf)
@@ -281,8 +288,9 @@ with sync_playwright() as p:
     if report['transitions']: print('转场冒烟', len(report['transitions']), '个，最慢', max((r['ms_max'] or 0, r['type']) for r in report['transitions']))
     br.close()
 srv.shutdown()
+srv.server_close()
 report['page_errors'] = errors
-json.dump(report, open(out / 'qa.json', 'w'), ensure_ascii=False, indent=1)
+with open(out / 'qa.json', 'w', encoding='utf-8') as fh: json.dump(report, fh, ensure_ascii=False, indent=1)
 rows = ['| 段 | 运动% | 静止帧对% | 跳变 | 均/峰 ms | 冷启动 ms | 确定性 | 框景 |', '|---|---|---|---|---|---|---|---|']
 for r in report['segments']:
     rows.append(f"| {r['id']} | {r['motion_pct']} | {r['still_pairs_pct']} | {len(r['spikes_at_lt'])} {r['spikes_at_lt'][:3]} | {r['ms_mean']}/{r['ms_max']} | {r['ms_cold']} | {'✓' if r['deterministic'] else '✗'} | {len(r['framing'])} |")

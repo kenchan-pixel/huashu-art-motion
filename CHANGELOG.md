@@ -7,7 +7,7 @@
 
 # CHANGELOG
 
-- 2026-10-09 fork（kenchan-pixel）· 繁体中文：font_subset.py `--big5`（Big5 常用字 5401＋粤语常用字）`--weight`（可变字体实例化）；新增霞鹜文楷 TC、jf 粉圆、思源黑体 HK 子集；`spec.fontset` / `render.py --fontset`（tc / tc-kids / tc-info）按内容换字库；y3 白板加 rocket、bubble 图标。Windows：render.py / qa.py 改多线程 HTTP/1.1 服务（修 ERR_CONNECTION_RESET），读写中文文件与 stdout 一律 UTF-8（修 cp950 报错）。
+- 2026-10-09 fork（kenchan-pixel）· 繁体中文：font_subset.py `--big5`（Big5 常用字 5401＋粤语常用字）`--weight`（可变字体实例化）；新增霞鹜文楷 TC、jf 粉圆、思源黑体 HK 子集；`spec.fontset` / `render.py --fontset` / `qa.py --fontset`（tc / tc-kids / tc-info，渲染和验收用同一字库）按内容换字库；y3 白板加 rocket、bubble 图标。Windows：render.py / qa.py 本地服务用 HTTP/1.1（合并上游多线程修复后仍需，修 ERR_CONNECTION_RESET）；render.py / qa.py / font_subset.py 读写中文文件（含 qa.json）与 stdout 用 UTF-8（修 cp950 报错），tests/test_fontset.py 覆盖。
 - 2026-10-04 v0.1 · 从「艺术史速通」复刻沉淀：拆解法（01）、五层机制（02）、一帧先行四路线（03）、纯代码绘制（04）、节奏与配乐（05）、口播驱动草案（06）；16 张风格配方卡；完整引擎＋16 个场景；breakdown.py 拆解脚本（网格拟合取「80% 内点下最大步长」）；key_green.py 保坐标抠图；音轨合成模板。
 - 2026-10-04 v0.3 · 迁移测试 A–D 回流进库：lib 拆出 brush.js（毛笔飞白/墨晕/流线长笔/水彩/厚涂/剪刀折线）、render.js（照片网点/点彩/赛璐珞/Kirby 阴影/体积/长影子/双版本光影/光照图/皮影/手剪位移/霓虹）、post.js（VHS/胶片/泛光/光晕/纹理叠角色/褪色）；RIG.limb 端帽修正、猫身与白胸平滑、drawGirl/drawCat 分层钩子、非等比拉长、刚体枢轴；角标可插拔且转场中点硬切；转场按 eras 自动加载、缓存可按段；霞鹜文楷子集＋font_subset.py＋U.assertGlyphs（查 cmap）；20 段新风格进 scenes/，全风格样片 eras_gallery.js（36 段，?film=gallery）；qa 加转场冒烟、--film。
 - 2026-10-04 v0.4 · YouTube 解说动画语法 8 种（Kurzgesagt / Vox / 白板 / storytime / 动态文字 / 3b1b / 发布会 / 财经图表）收进 skill：
@@ -21,3 +21,7 @@
 
 - 2026-10-05 v0.5 · 开源整理：去掉本机路径与合作项目信息；中文黑体换成思源黑体 Noto Sans SC（family 名沿用 PuHui-*），补字体许可清单；全风格样片移到 Release；加 README / LICENSE。
 - 2026-10-05 v0.6 · 开源第二轮：Vox 示范片的人物改用卡通帧，写实人像不再随仓库；配乐脚本换成原创示例乐谱，音轨文档改成「方法＋原创示例」；洞穴段标题换成原创文字；收进长卷穿越片示范 demos/long_scroll（骨架＋埃及、莫奈、8-bit 三段）与 11 号文档。
+
+- 2026-10-08 · P0/P1本地实现：可选语音配置、已有音频/macOS系统声音/火山复刻、安装目录外私人默认、按需配置与跳过、旧koubo入口兼容；共享文件清单同步。图片能力桥接与跨宿主完整发布验收留后续。
+
+- 2026-10-08 · P2/P3：增加现有图片与当前宿主工具桥接、需求计划/回执/透明背景/尺寸与SHA验收；旧配置保留，新增能力不自动授权；补充贡献与兼容性说明、CI及增量发布检查。三家安装重装通过，Codex在线验收通过，Claude/Kimi在线验收因账户条件待补。
