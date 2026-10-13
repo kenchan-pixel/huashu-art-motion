@@ -36,5 +36,8 @@ The fonts in this directory are NOT covered by the repository's MIT license. Eac
 | `NotoSansSC-sub.woff` | 思源黑体 Noto Sans SC（按用字子集） | © 2014-2021 Adobe，Reserved Font Name "Source" | Google Fonts |
 | `NotoSerifSC-sub.woff` | 思源宋体 Noto Serif SC（按用字子集） | © 2017-2024 Adobe | Google Fonts |
 | `NotoSerifJP-600.woff` | Noto Serif JP | © 2017-2024 Adobe | Google Fonts |
+| `LXGWWenKaiTC-500.woff` | 霞鹜文楷 TC LXGW WenKai TC（Big5 常用字＋粤语常用字子集） | © 2021-2025 LXGW；© 2020 The Klee Project Authors | github.com/lxgw/LxgwWenkaiTC v1.522 |
+| `Huninn-400.woff` | jf open 粉圆 jf-openhuninn（同上子集） | © 2019 justfont；基于 Kosugi Maru © Motoya | github.com/justfont/open-huninn-font v2.1 |
+| `NotoSansHK-500/700/800/900.woff` `NotoSansHK-var.woff` | 思源黑体 HK Noto Sans HK（按字重实例化／可变字重，同上子集） | © 2014-2021 Adobe，Reserved Font Name "Source" | Google Fonts |
 
 带 Reserved Font Name 的字体，改动过的版本不能沿用保留名。本目录里带保留名的这几款（拉丁字体）内部字体名都是原名（按 Google Fonts 发行的 woff 使用）；如果你要对它们抽子集或改字形，请同时改掉 family 名。

@@ -53,4 +53,32 @@ window.FONT_FACES = [
   // 思源黑/宋（可变字重）：只含 3b1b/发布会/财经三支示范片用到的字（源文件未随仓库附带，换题目缺字时改用 PuHui-*，或下 Google Fonts 的 NotoSansSC[wght].ttf 重做子集）
   {family:'NotoSansSC', url:'lib/fonts/NotoSansSC-sub.woff', desc:{weight:'100 900'}},
   {family:'NotoSerifSC', url:'lib/fonts/NotoSerifSC-sub.woff', desc:{weight:'200 900'}},
+  // ---- 繁体中文（港台）：Big5 常用字 5401＋粤语常用字子集（font_subset.py --big5），OFL 1.1 ----
+  {family:'LXGWWenKaiTC-500', url:'lib/fonts/LXGWWenKaiTC-500.woff'},
+  {family:'Huninn-400', url:'lib/fonts/Huninn-400.woff'},
+  {family:'NotoSansHK-500', url:'lib/fonts/NotoSansHK-500.woff'},
+  {family:'NotoSansHK-700', url:'lib/fonts/NotoSansHK-700.woff'},
+  {family:'NotoSansHK-800', url:'lib/fonts/NotoSansHK-800.woff'},
+  {family:'NotoSansHK-900', url:'lib/fonts/NotoSansHK-900.woff'},
+  {family:'NotoSansHK', url:'lib/fonts/NotoSansHK-var.woff', desc:{weight:'100 900'}},
 ];
+
+// 繁体字库组（spec.fontset 或 render.py --fontset）：把简体字体的「位子」换成繁体文件，family 名不变，所以 clips/、lib/ 里的引用一行都不用改。
+// 按内容选：tc＝手写／叙事解说（霞鹜文楷 TC＋思源黑体 HK，默认）；tc-kids＝儿童科普（全部 jf 粉圆）；tc-info＝数据、图表、发布会、手机小字（全部思源黑体 HK，港式字形）。
+// 宋体位 NotoSerifSC 暂无繁体对应，保留原文件，缺字会照常告警。
+window.FONTSETS = (() => {
+  const sans = { 'PuHui-Medium': 'NotoSansHK-500', 'PuHui-Bold': 'NotoSansHK-700', 'PuHui-Heavy': 'NotoSansHK-800', 'PuHui-Black': 'NotoSansHK-900', 'NotoSansSC': 'NotoSansHK' };
+  const all = to => Object.fromEntries(['LXGWWenKai-500', 'PuHui-Medium', 'PuHui-Bold', 'PuHui-Heavy', 'PuHui-Black', 'NotoSansSC'].map(k => [k, to]));
+  return {
+    'tc': { 'LXGWWenKai-500': 'LXGWWenKaiTC-500', ...sans },
+    'tc-kids': all('Huninn-400'),
+    'tc-info': { 'LXGWWenKai-500': 'NotoSansHK-500', ...sans },
+  };
+})();
+window.applyFontset = name => {
+  if (!name) return;
+  const map = window.FONTSETS[name];
+  if (!map) throw new Error(`没有这个 fontset：${name}（可用：${Object.keys(window.FONTSETS).join(' ')}）`);
+  const byFamily = Object.fromEntries(FONT_FACES.map(f => [f.family, f]));
+  for (const f of FONT_FACES) { const to = byFamily[map[f.family]]; if (to) { f.url = to.url; f.desc = to.desc; } }
+};

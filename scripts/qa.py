@@ -31,6 +31,8 @@
 """
 import argparse, base64, functools, http.server, io, json, socketserver, threading, urllib.parse
 from pathlib import Path
+import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # Windows 繁中系统默认 cp950：打印页面里的简体报错会 UnicodeEncodeError
 import numpy as np
 from PIL import Image, ImageDraw
 from playwright.sync_api import sync_playwright
@@ -39,11 +41,12 @@ ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 ap.add_argument('--project'); ap.add_argument('--spec', help='参数化片段 spec（走 clip.html，和 render.py --spec 同一套）'); ap.add_argument('--ids'); ap.add_argument('--fps', type=float, default=30)
 ap.add_argument('--out'); ap.add_argument('--film', default='', help='片子名：读 eras_<名>.js'); ap.add_argument('--skip', type=float, default=0.35, help='每段开头跳过的秒数（镜头冲击）')
 ap.add_argument('--sub-band', type=float, default=None, help='字幕带上沿（占画高比例）；整片默认 0.852（920/1080），--spec 默认读 safe.bottom；写 0 关掉「进字幕带」检查')
+ap.add_argument('--fontset', help='繁体字库组，和 render.py --fontset 同一个值才量得准（tc | tc-kids | tc-info）；--spec 时覆盖 spec.fontset')
 a = ap.parse_args()
 if not (a.project or a.spec): ap.error('--project 或 --spec 二选一')
 spec, ALLOWED = None, set()
 if a.spec:                                                 # 和 render.py 同一套：本地图片只服务 spec 里点名的文件
-    sp = Path(a.spec).resolve(); spec = json.loads(sp.read_text())
+    sp = Path(a.spec).resolve(); spec = json.loads(sp.read_text(encoding='utf-8'))
     def ref(v):
         if not v or v.startswith(('data:', 'http:', 'https:')): return v
         f = (sp.parent / v).resolve()
@@ -52,6 +55,7 @@ if a.spec:                                                 # 和 render.py 同�
     for q in spec.get('cues', []):
         if q.get('image'): q['image'] = ref(q['image'])
     if (spec.get('data') or {}).get('image'): spec['data']['image'] = ref(spec['data']['image'])
+    if a.fontset: spec['fontset'] = a.fontset
 root = Path(a.project).resolve() if a.project else Path(__file__).resolve().parent / 'engine'
 out = Path(a.out) if a.out else (Path(a.spec).resolve().parent / 'qa' if a.spec else root.parent / 'qa'); out.mkdir(parents=True, exist_ok=True)
 VW, VH = (spec.get('width', 1920), spec.get('height', 1080)) if spec else (1920, 1080)
@@ -60,6 +64,7 @@ if a.sub_band is None:   # 片段给管线用：字幕让位写在 spec 的 safe
     a.sub_band = 0.852 if sb is None else (1 - sb / VH if sb else 0)
 
 class Q(http.server.SimpleHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'   # Windows：HTTP/1.0 每次关连接，Chromium 复用/预连接的 socket 会被 RST（ERR_CONNECTION_RESET）
     def log_message(self, *x): pass
     def translate_path(self, path):
         if path.startswith('/__file__/'):
@@ -218,7 +223,7 @@ with sync_playwright() as p:
         pg.add_init_script('window.CLIP_SPEC = ' + json.dumps(spec, ensure_ascii=False) + ';')
         pg.goto(f'http://127.0.0.1:{port}/clip.html?render=1')
     else:
-        pg.goto(f'http://127.0.0.1:{port}/index.html?render=1' + (f'&film={a.film}' if a.film else ''))
+        pg.goto(f'http://127.0.0.1:{port}/index.html?render=1' + (f'&film={a.film}' if a.film else '') + (f'&fontset={a.fontset}' if a.fontset else ''))
     pg.wait_for_function('window.__ready === true || !!window.__bootFailed', timeout=180000)
     bf = pg.evaluate('window.__bootFailed || null')
     if bf: raise SystemExit('❌ 场景加载失败：\n' + bf)
@@ -285,21 +290,21 @@ with sync_playwright() as p:
 srv.shutdown()
 srv.server_close()
 report['page_errors'] = errors
-json.dump(report, open(out / 'qa.json', 'w'), ensure_ascii=False, indent=1)
+with open(out / 'qa.json', 'w', encoding='utf-8') as fh: json.dump(report, fh, ensure_ascii=False, indent=1)
 rows = ['| 段 | 运动% | 静止帧对% | 跳变 | 均/峰 ms | 冷启动 ms | 确定性 | 框景 |', '|---|---|---|---|---|---|---|---|']
 for r in report['segments']:
     rows.append(f"| {r['id']} | {r['motion_pct']} | {r['still_pairs_pct']} | {len(r['spikes_at_lt'])} {r['spikes_at_lt'][:3]} | {r['ms_mean']}/{r['ms_max']} | {r['ms_cold']} | {'✓' if r['deterministic'] else '✗'} | {len(r['framing'])} |")
 fr = [(r['id'], x) for r in report['segments'] for x in r['framing']]
 if fr: rows += ['', '框景线索（全片秒，持续 ≥0.3s；去看这一帧再判断）：'] + [f"- {x['kind']} {x['t'][0]:.2f}–{x['t'][1]:.2f}s（{i}）{x['text']}" for i, x in fr]
 if report.get('transitions'): rows += ['', '转场冒烟（整帧，峰值 ms）：' + '，'.join(f"{r['type']}→{r['id']} {r['ms_max']}" for r in report['transitions'])]
-(out / 'qa.md').write_text('\n'.join(rows) + ('\n\n页面报错：\n' + '\n'.join(errors) if errors else '') + '\n')
+(out / 'qa.md').write_text('\n'.join(rows) + ('\n\n页面报错：\n' + '\n'.join(errors) if errors else '') + '\n', encoding='utf-8')
 print('->', out / 'qa.md')
 if not spec and root != Path(__file__).resolve().parent / 'engine':   # 回流兜底（11 号第一节）：qa 是交付前必跑的，在这里提醒，不让 qa 失败
     import re, time
     draft = next((d / '经验回流-草稿.md' for d in (root.parent, root.parent.parent) if (d / '经验回流-草稿.md').exists()), None)
     if not draft: print(f'回流提醒：项目根（{root.parent.name}）还没有 经验回流-草稿.md。每轮改完追加几条，格式见 skill 的 references/11-进化协议.md 第四节。')
     else:
-        txt = draft.read_text(); age = (time.time() - draft.stat().st_mtime) / 60
+        txt = draft.read_text(encoding='utf-8'); age = (time.time() - draft.stat().st_mtime) / 60
         tail = txt.rsplit('> 水位线', 1)[-1] if '> 水位线' in txt else txt     # 水位线以下＝还没写回 skill 的
         n = len(re.findall(r'^### \[', tail, re.M))
         print(f'回流提醒：经验回流-草稿.md 最近一次写入在 {age:.0f} 分钟前；还没写回 skill 的有 {n} 条（收活时按 11 号归宿表整合，整合完在草稿末尾加一行「> 水位线 <时间>」）。')

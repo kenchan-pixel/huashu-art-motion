@@ -10,7 +10,7 @@ ap = argparse.ArgumentParser(); ap.add_argument('files', nargs='+'); ap.add_argu
 ap.add_argument('--soft', type=float, default=30); ap.add_argument('--hard', type=float, default=100); ap.add_argument('--pad', type=int, default=4)
 a = ap.parse_args()
 out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-meta_p = out / 'sprites.json'; meta = json.loads(meta_p.read_text()) if meta_p.exists() else {}
+meta_p = out / 'sprites.json'; meta = json.loads(meta_p.read_text(encoding='utf-8')) if meta_p.exists() else {}
 for f in a.files:
     im = np.asarray(Image.open(f).convert('RGB')).astype(np.float32)
     r, g, b = im[..., 0], im[..., 1], im[..., 2]

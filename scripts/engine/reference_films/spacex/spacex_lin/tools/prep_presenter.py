@@ -60,4 +60,4 @@ for pose, pre, sheet in jobs:
         Image.fromarray(fr, 'RGBA').save(OUT / name)
         meta[pose].append({'src': f'spacex_lin/assets/{name}', 'w': w, 'h': h, 'ax': ax, 'ay': h, 'top': top, 'body': h - top})
     print(pose, len(frames), [(f['w'], f['h'], f['body']) for f in meta[pose]], '' if len(frames) == EXPECT.get(pose, 3) else '⚠️ 帧数不对')
-(ROOT / 'presenter_meta.js').write_text('// 由 tools/prep_presenter.py 生成，勿手改\nwindow.LIN_META = ' + json.dumps(meta, ensure_ascii=False) + ';\n')
+(ROOT / 'presenter_meta.js').write_text('// 由 tools/prep_presenter.py 生成，勿手改\nwindow.LIN_META = ' + json.dumps(meta, ensure_ascii=False) + ';\n', encoding='utf-8')
